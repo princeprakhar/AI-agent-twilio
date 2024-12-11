@@ -1,13 +1,28 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>AI - Agent</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
-  </body>
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Connect to AI Assistant</title>
+</head>
+
+<body>
+    <p>Please fill out the form below to get started.</p>
+
+    <!-- Form for user input (Phone Number, Email, Objective) -->
+    <form action="/" method="POST">
+        <label for="phoneNumber">Phone Number:</label><br>
+        <input type="text" id="phoneNumber" name="phoneNumber" placeholder="Enter your phone number" required><br><br>
+
+        <label for="email">Email:</label><br>
+        <input type="email" id="email" name="email" placeholder="Enter your email" required><br><br>
+
+        <label for="objective">Objective:</label><br>
+        <input type="text" id="objective" name="objective" placeholder="What is your objective?" required><br><br>
+
+        <button type="submit">Start Assistant</button>
+    </form>
+</body>
+
 </html>
