@@ -50,19 +50,27 @@ async def index_page(request: Request):
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-# Incoming call endpoint: Trigger call via Twilio and handle call routing
+# Endpoint for handling the Call
 @app.api_route("/incoming-call", methods=["GET"])
 async def handle_incoming_call(request: Request):
     phone_number = request.query_params.get("phone_number")
     email = request.query_params.get("email")
     objective = request.query_params.get("objective")
 
+    # Ensure ngrok or localhost URL is correctly formatted
+    host = request.url.hostname  # This will return 'localhost' or 'ngrok-url' in local dev
+    protocol = "http" if request.url.scheme == "http" else "https"  # Use http/https based on request scheme
+    ngrok_url = f"{protocol}://{host}:{request.url.port}"  # Build the full URL for local testing
+    
+    # Ensure the URL for Twilio is correctly formed, here we append the path to the handle-twilio-call endpoint
+    twilio_url = f"{ngrok_url}/handle-twilio-call"  # This will be the endpoint Twilio hits for TwiML instructions
+    
     # Make a call to the provided phone number using Twilio API
     try:
         call = client.calls.create(
             to=phone_number,
             from_=TWILIO_PHONE_NUMBER,
-            url="http://your-domain.com/handle-twilio-call"  # Make sure this URL is accessible
+            url=twilio_url
         )
         print(f"Outbound call initiated to {phone_number}")
     except Exception as e:
@@ -71,6 +79,7 @@ async def handle_incoming_call(request: Request):
 
     # Optionally, log or handle the call status
     return HTMLResponse(content="Call is being initiated...", status_code=200)
+
 
 
 @app.api_route("/handle-twilio-call", methods=["GET"])
@@ -87,6 +96,7 @@ async def handle_twilio_call(request: Request):
     response.append(connect)
 
     return HTMLResponse(content=str(response), media_type="application/xml")
+
     
 
 # WebSocket for handling media stream between Twilio and OpenAI
