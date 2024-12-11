@@ -2,9 +2,10 @@ import os
 import json
 import base64
 import asyncio
-from fastapi import FastAPI, WebSocket, Request, Form
+from fastapi import FastAPI, WebSocket, Request, Form,RedirectResponse
 from fastapi.responses import HTMLResponse
 from fastapi.templating import Jinja2Templates
+from twilio.rest import Client
 from twilio.twiml.voice_response import VoiceResponse, Connect
 from dotenv import load_dotenv
 import uvicorn
@@ -23,43 +24,69 @@ SYSTEM_MESSAGE = (
 )
 VOICE = 'alloy'
 
+# Setting up Twilio configuration
+TWILIO_ACCOUNT_SID = os.getenv("TWILIO_ACCOUNT_SID")
+TWILIO_AUTH_TOKEN = os.getenv("TWILIO_AUTH_TOKEN")
+TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
+client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+
 # Initialize FastAPI app and Jinja2 template rendering
 app = FastAPI()
 templates = Jinja2Templates(directory="frontend")
 
 
 # Root Endpoint: Displaying the landing page with the "Enter Data" button
-@app.api_route("/", methods=["GET"])
+@app.api_route("/", methods=["GET", "POST"])
 async def index_page(request: Request):
+    if request.method == "POST":
+        form_data = await request.form()
+        phone_number = form_data.get("phoneNumber")
+        email = form_data.get("email")
+        objective = form_data.get("objective")
+
+        # Redirect to incoming-call endpoint with user details
+        return RedirectResponse(url=f"/incoming-call?phone_number={phone_number}&email={email}&objective={objective}")
+    
     return templates.TemplateResponse("index.html", {"request": request})
 
 
-# Incoming call endpoint: This is where the call will be routed by Twilio
-@app.api_route("/incoming-call", methods=["GET", "POST"])
+# Incoming call endpoint: Trigger call via Twilio and handle call routing
+@app.api_route("/incoming-call", methods=["GET"])
 async def handle_incoming_call(request: Request):
-    """
-    This function handles the incoming call and returns a TwiML response.
-    If the request is from the browser (i.e., accessing the UI), it displays the page.
-    """
-    # GET request - if the request is from Twilio, return TwiML
-    user_agent = request.headers.get('User-Agent', '')
-    if 'Twilio' in user_agent:
-        # This request is from Twilio, return TwiML
-        response = VoiceResponse()
+    phone_number = request.query_params.get("phone_number")
+    email = request.query_params.get("email")
+    objective = request.query_params.get("objective")
 
-        response.say("Hi there! We're connecting your call to our AI assistant.")
-        response.pause(length=1)
-        response.say("O.K. you can start talking!")
+    # Make a call to the provided phone number using Twilio API
+    try:
+        call = client.calls.create(
+            to=phone_number,
+            from_=TWILIO_PHONE_NUMBER,
+            url="http://your-domain.com/handle-twilio-call"  # Make sure this URL is accessible
+        )
+        print(f"Outbound call initiated to {phone_number}")
+    except Exception as e:
+        print(f"Error initiating call: {e}")
+        return HTMLResponse(content="Error initiating call.", status_code=500)
 
-        host = request.url.hostname
-        connect = Connect()
-        connect.stream(url=f'wss://{host}/media-stream')
-        response.append(connect)
+    # Optionally, log or handle the call status
+    return HTMLResponse(content="Call is being initiated...", status_code=200)
 
-        return HTMLResponse(content=str(response), media_type="application/xml")
-    
-    # If this is a browser request (GET request), show connecting info and user data
-    return templates.TemplateResponse("call.html", {"request": request})
+
+@app.api_route("/handle-twilio-call", methods=["GET"])
+async def handle_twilio_call(request: Request):
+    response = VoiceResponse()
+    response.say("Hi there! We're connecting your call to our AI assistant.")
+    response.pause(length=1)
+    response.say("O.K. you can start talking!")
+
+    # Connect to media stream for interaction
+    host = request.url.hostname
+    connect = Connect()
+    connect.stream(url=f'wss://{host}/media-stream')
+    response.append(connect)
+
+    return HTMLResponse(content=str(response), media_type="application/xml")
     
 
 # WebSocket for handling media stream between Twilio and OpenAI
